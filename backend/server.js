@@ -1,8 +1,10 @@
 const express = require('express');
+const cors = require('cors');
 const app = express();
 const PORT = 3000; // We'll run the backend on port 3000
 
 // This middleware allows our server to accept JSON data in requests
+app.use(cors()); // Enable CORS for all routes
 app.use(express.json());
 
 // A simple test route to make sure our server is working
