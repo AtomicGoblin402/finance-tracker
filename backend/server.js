@@ -1,47 +1,64 @@
 const express = require('express');
 const cors = require('cors');
+const bcrypt = require('bcryptjs');
+const { sequelize, User } = require('./models');
 const app = express();
-const PORT = 3000; // We'll run the backend on port 3000
+const PORT = 3000;
 
-// This middleware allows our server to accept JSON data in requests
-app.use(cors()); // Enable CORS for all routes
+app.use(cors());
 app.use(express.json());
 
-// A simple test route to make sure our server is working
 app.get('/', (req, res) => {
   res.send('Hello from the backend!');
 });
 
-// We will add our API routes here later...
-
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
-});
-
-//In-mem database for storing user data
-const users = [];
-
-//API endpoint to register a new user
-app.post('/api/register', (req, res) => {
+// Register endpoint
+app.post('/api/register', async (req, res) => {
   const { email, password } = req.body;
-
-  // Simple validation
   if (!email || !password) {
     return res.status(400).json({ message: 'Email and password are required.' });
   }
-
-  // Check if user already exists
-  const existingUser = users.find(user => user.email === email);
-  if (existingUser) {
-    return res.status(409).json({ message: 'Email already exists.' });
+  try {
+    const existingUser = await User.findOne({ where: { email } });
+    if (existingUser) {
+      return res.status(409).json({ message: 'Email already exists.' });
+    }
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = await User.create({ email, password: hashedPassword });
+    res.status(201).json({ message: 'User registered successfully.', userID: newUser.id });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error.' });
   }
+});
 
-  // Save new user
-  const newUser = { id: users.length + 1, email, password }; // In a real app, never store passwords in plain text!
-  users.push(newUser);
+// Login endpoint
+app.post('/api/login', async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ message: 'Email and password are required.' });
+  }
+  try {
+    const user = await User.findOne({ where: { email } });
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid email or password.' });
+    }
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Invalid email or password.' });
+    }
+    // Extract username (before @)
+    const username = user.email.split('@')[0];
+    res.json({ success: true, message: 'Login successful.', userID: user.id, username });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error.' });
+  }
+});
 
-  console.log('Current users:', users);
-
-  // Respond with success
-  res.status(201).json({ message: 'User registered successfully.', userID: newUser.id });
+// Sync database and start server
+sequelize.sync().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Server is running on http://localhost:${PORT}`);
+  });
 });

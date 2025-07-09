@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 //import ReactiveFormsModule
 import {FormBuilder, FormGroup, Validators, ReactiveFormsModule} from '@angular/forms';
 import { AuthService } from '../auth';
+import { Router } from '@angular/router';
 // 
 
 @Component({
@@ -20,7 +21,8 @@ export class RegisterComponent implements OnInit {
 
   constructor(
     private fb: FormBuilder,
-    private authService: AuthService
+    private authService: AuthService,
+    private router: Router
   ) { }
 
   ngOnInit(): void {
@@ -34,14 +36,31 @@ export class RegisterComponent implements OnInit {
     if (this.registerForm.invalid) {
       return;
     }
-    console.log('Sending to backend:', this.registerForm.value);
     this.authService.register(this.registerForm.value).subscribe({
-      next: (response) => {
-        console.log('Successfully registered!', response);
+      next: (response: any) => {
+        // On successful registration, log in the user automatically
+        this.authService.login(this.registerForm.value).subscribe({
+          next: (data: any) => {
+            if (data.success) {
+              localStorage.setItem('username', data.username);
+              this.router.navigate(['/home']);
+            } else {
+              alert(data.message || 'Login failed.');
+            }
+          },
+          error: (err) => {
+            alert(err.error?.message || 'Login failed.');
+          }
+        });
       },
       error: (err) => {
-        console.error('Registration failed!', err);
+        // Handle error (show message, etc.)
+        alert('Registration failed! ' + (err.error?.message || ''));
       }
     });
+  }
+
+  goToLogin(): void {
+    this.router.navigate(['/login']);
   }
 }
